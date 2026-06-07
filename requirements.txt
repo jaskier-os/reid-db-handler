@@ -1,5 +1,4 @@
 # Python dependencies for the FAISS subprocess (faiss_server.py).
-# Pinned for reproducibility. numpy is kept on the 1.x line because
-# faiss-cpu 1.8.0 is built against the numpy 1.x ABI.
-faiss-cpu==1.8.0
+# Pinned for reproducibility. Kept consistent with reid-worker.
+faiss-cpu==1.12.0
 numpy==1.26.4
