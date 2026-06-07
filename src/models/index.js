@@ -1,0 +1,9 @@
+export { default as Person } from './Person.js';
+export { default as Trait } from './Trait.js';
+export { default as Sighting } from './Sighting.js';
+export { default as Camera } from './Camera.js';
+export { default as PersonRelationship } from './PersonRelationship.js';
+export { default as AuditLog } from './AuditLog.js';
+export { default as PersonLocation } from './PersonLocation.js';
+export { default as MovementPattern } from './MovementPattern.js';
+export { default as OsintAsset } from './OsintAsset.js';

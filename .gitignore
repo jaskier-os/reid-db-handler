@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+
+# Python (FAISS subprocess)
+venv/
+.venv/
+env/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# FAISS runtime index (regenerated at runtime; not source)
+database/faiss/faiss_index.bin
+database/faiss/metadata.json
+
+# Testing
+coverage/
+.nyc_output/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+dist/
+build/
+.cache/
