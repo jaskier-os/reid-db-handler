@@ -7,3 +7,4 @@ export { default as AuditLog } from './AuditLog.js';
 export { default as PersonLocation } from './PersonLocation.js';
 export { default as MovementPattern } from './MovementPattern.js';
 export { default as OsintAsset } from './OsintAsset.js';
+export { default as Face3DFrames } from './Face3DFrames.js';

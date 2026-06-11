@@ -14,6 +14,7 @@ import './models/index.js';
 // Import routes
 import healthRouter from './routes/health.js';
 import personsRouter from './routes/persons.js';
+import face3dRouter from './routes/face3d.js';
 import traitsRouter from './routes/traits.js';
 import sightingsRouter from './routes/sightings.js';
 import faissRouter from './routes/faiss.js';
@@ -59,6 +60,7 @@ app.use(healthRouter.routes()).use(healthRouter.allowedMethods());
 
 // API routes (auth required)
 app.use(apiKeyAuth);
+app.use(face3dRouter.routes()).use(face3dRouter.allowedMethods());
 app.use(personsRouter.routes()).use(personsRouter.allowedMethods());
 app.use(traitsRouter.routes()).use(traitsRouter.allowedMethods());
 app.use(sightingsRouter.routes()).use(sightingsRouter.allowedMethods());
