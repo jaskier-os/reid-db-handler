@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { Person, Trait, Sighting, PersonRelationship } from '../models/index.js';
+import { Person, Trait, Sighting, PersonRelationship, Face3DFrames } from '../models/index.js';
 import { getFaissService } from './faiss-service.js';
 import config from '../config.js';
 import logger from '../logger.js';
@@ -22,6 +22,8 @@ export async function mergePersons(sourcePersonId, targetPersonId) {
   let traitsMoved = 0;
   let sightingsMoved = 0;
   let targetPerson;
+  let sourceExternalId = null;
+  let targetExternalId = null;
 
   try {
     await session.withTransaction(async () => {
@@ -32,6 +34,11 @@ export async function mergePersons(sourcePersonId, targetPersonId) {
 
       if (!source) throw new Error(`Source person not found: ${sourcePersonId}`);
       if (!target) throw new Error(`Target person not found: ${targetPersonId}`);
+
+      // FAISS is keyed by Person.external_id (not DB id). Capture both before the
+      // source is deleted so we can relabel FAISS entries after the transaction.
+      sourceExternalId = source.external_id;
+      targetExternalId = target.external_id;
 
       const traitsResult = await Trait.updateMany(
         { person_id: sourcePersonId },
@@ -54,11 +61,54 @@ export async function mergePersons(sourcePersonId, targetPersonId) {
         ]
       }, { session });
 
+      // Reconcile per-person 3D face frames. db-handler must NEVER decode or
+      // re-pack the frames blob (the worker owns packing), so we never merge the
+      // two blobs here. last_built_at_count = 0 is the rebuild signal: the
+      // worker's next cadence check (frame_count - last_built_at_count >=
+      // refine_interval) fires a rebuild once it rehydrates the target's frames.
+      const [srcF3, tgtF3] = await Promise.all([
+        Face3DFrames.findOne({ person_id: sourcePersonId }).session(session),
+        Face3DFrames.findOne({ person_id: targetPersonId }).session(session)
+      ]);
+
+      const framesReconciled = !!srcF3;
+
+      if (srcF3 && !tgtF3) {
+        // Target has no frames doc: reassign the source's doc to the target.
+        // person_id has a unique index; safe because the target has no doc.
+        await Face3DFrames.updateOne(
+          { person_id: sourcePersonId },
+          { $set: { person_id: targetPersonId, last_built_at_count: 0 } },
+          { session }
+        );
+      } else if (srcF3 && tgtF3) {
+        // Both have frames docs. We cannot merge the two blobs (the worker owns
+        // packing and db-handler must never decode it), so we keep the target's
+        // frames and just flag it for rebuild. This discards the source's
+        // accumulated frames, which is acceptable: the worker re-accumulates.
+        await Face3DFrames.updateOne(
+          { person_id: targetPersonId },
+          { $set: { last_built_at_count: 0 } },
+          { session }
+        );
+        await Face3DFrames.deleteOne({ person_id: sourcePersonId }, { session });
+      }
+
       await Person.findByIdAndDelete(sourcePersonId, { session });
+
+      // When frames were reconciled the target is now flagged for rebuild, so
+      // any previously built model is stale: clear it so an outdated GLB does
+      // not linger until the worker rebuilds.
+      const targetUpdate = { last_seen_at: new Date() };
+      if (framesReconciled) {
+        targetUpdate.face_model_3d = null;
+        targetUpdate.face_model_format = 'glb';
+        targetUpdate.face_model_updated_at = null;
+      }
 
       targetPerson = await Person.findByIdAndUpdate(
         targetPersonId,
-        { $set: { last_seen_at: new Date() } },
+        { $set: targetUpdate },
         { session, new: true }
       );
     });
@@ -73,12 +123,20 @@ export async function mergePersons(sourcePersonId, targetPersonId) {
     sightings_moved: sightingsMoved
   });
 
-  // FAISS: relabel source entries to target (non-fatal)
+  // FAISS: relabel source entries to target (non-fatal). FAISS is keyed by
+  // Person.external_id, so the rename must operate on external_ids, not DB ids.
   try {
     const faiss = getFaissService();
     if (faiss.isReady) {
-      await faiss.renamePerson(sourcePersonId, targetPersonId);
-      await faiss.save();
+      if (sourceExternalId && targetExternalId) {
+        await faiss.renamePerson(sourceExternalId, targetExternalId);
+        await faiss.save();
+      } else {
+        logger.warn('Skipping FAISS rename after merge: missing external_id', {
+          source_external_id: sourceExternalId,
+          target_external_id: targetExternalId
+        });
+      }
     }
   } catch (err) {
     logger.warn('FAISS cleanup after merge failed (non-fatal)', { error: err.message });
