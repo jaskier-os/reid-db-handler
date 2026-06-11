@@ -1,5 +1,7 @@
 # reid-db-handler
 
+> **Docs & wiki:** [github.com/jaskier-os/docs/wiki](https://github.com/jaskier-os/docs/wiki)
+
 Koa HTTP API over MongoDB for person re-identification data (persons, traits,
 sightings). It's the only thing that talks to the database directly; reid-worker
 and reid-analytics go through this API. Similarity search and auto-merge run in a
